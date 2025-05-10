@@ -479,7 +479,7 @@ document.addEventListener('keydown', (event) => {
             gameStarted = true;
             startTime = Date.now();
             document.body.style.cursor = 'none'; // Hide cursor when game starts
-            showMessage("Game Started! Collect all rings as fast as you can!", 3000);
+            showMessage("Game Started! Press W to move forward and collect all rings as fast as you can!", 3000);
         }
         
         // Hide current message when space is pressed
@@ -491,6 +491,9 @@ document.addEventListener('keydown', (event) => {
             }
         }
     }
+    
+    // Only allow movement if game has started
+    if (!gameStarted) return;
     
     switch (event.key.toLowerCase()) {
         case 'w':
@@ -627,40 +630,43 @@ function animate() {
         // Apply rotation
         playerShip.quaternion.copy(finalQuat);
         
-        // Get ship's forward direction
-        const direction = new THREE.Vector3();
-        playerShip.getWorldDirection(direction);
-        direction.negate();
-        
-        // Apply acceleration when moving forward or backward
-        if (moveForward) {
-            velocity.add(direction.multiplyScalar(acceleration));
-        }
-        if (moveBackward) {
-            velocity.add(direction.multiplyScalar(-acceleration));
-        }
-        
-        // Apply deceleration when not moving
-        if (!moveForward && !moveBackward) {
-            const currentSpeed = velocity.length();
-            if (currentSpeed > 0) {
-                const decelVector = velocity.clone().normalize().multiplyScalar(deceleration);
-                velocity.sub(decelVector);
-                
-                // Stop completely if speed is very low
-                if (velocity.length() < deceleration) {
-                    velocity.set(0, 0, 0);
+        // Only apply movement if game has started
+        if (gameStarted) {
+            // Get ship's forward direction
+            const direction = new THREE.Vector3();
+            playerShip.getWorldDirection(direction);
+            direction.negate();
+            
+            // Apply acceleration when moving forward or backward
+            if (moveForward) {
+                velocity.add(direction.multiplyScalar(acceleration));
+            }
+            if (moveBackward) {
+                velocity.add(direction.multiplyScalar(-acceleration));
+            }
+            
+            // Apply deceleration when not moving
+            if (!moveForward && !moveBackward) {
+                const currentSpeed = velocity.length();
+                if (currentSpeed > 0) {
+                    const decelVector = velocity.clone().normalize().multiplyScalar(deceleration);
+                    velocity.sub(decelVector);
+                    
+                    // Stop completely if speed is very low
+                    if (velocity.length() < deceleration) {
+                        velocity.set(0, 0, 0);
+                    }
                 }
             }
+            
+            // Limit maximum speed
+            if (velocity.length() > maxSpeed) {
+                velocity.normalize().multiplyScalar(maxSpeed);
+            }
+            
+            // Apply velocity to position
+            playerShip.position.add(velocity);
         }
-        
-        // Limit maximum speed
-        if (velocity.length() > maxSpeed) {
-            velocity.normalize().multiplyScalar(maxSpeed);
-        }
-        
-        // Apply velocity to position
-        playerShip.position.add(velocity);
         
         // Update camera position
         const cameraOffset = new THREE.Vector3(0, 5, 15);
