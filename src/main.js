@@ -214,7 +214,7 @@ const cornerRotationSpeed = 0.02;
 const settingsIcon = document.createElement('div');
 settingsIcon.innerHTML = '⚙️';
 settingsIcon.style.position = 'absolute';
-settingsIcon.style.top = '20px';
+settingsIcon.style.top = '100px';
 settingsIcon.style.right = '20px';
 settingsIcon.style.fontSize = '24px';
 settingsIcon.style.cursor = 'pointer';
@@ -223,7 +223,7 @@ document.body.appendChild(settingsIcon);
 
 const settingsPanel = document.createElement('div');
 settingsPanel.style.position = 'absolute';
-settingsPanel.style.top = '60px';
+settingsPanel.style.top = '140px';
 settingsPanel.style.right = '20px';
 settingsPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
 settingsPanel.style.color = 'white';
@@ -694,4 +694,23 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-}); 
+});
+
+// Add stream info overlay
+const streamInfo = document.createElement('div');
+streamInfo.style.position = 'absolute';
+streamInfo.style.top = '20px';
+streamInfo.style.right = '20px';
+streamInfo.style.color = 'white';
+streamInfo.style.fontFamily = 'Arial';
+streamInfo.style.fontSize = '14px';
+streamInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+streamInfo.style.padding = '10px';
+streamInfo.style.borderRadius = '5px';
+streamInfo.style.zIndex = '1000';
+streamInfo.innerHTML = `
+    <div style="margin-bottom: 5px">Stream: spaceforce.moisestrejo.com</div>
+    <div style="margin-bottom: 5px">ID: 11204305384</div>
+    <div>Measurement: G-PWCMCGCY5K</div>
+`;
+document.body.appendChild(streamInfo); 
