@@ -46,12 +46,46 @@ function createStarfield() {
     scene.add(starField);
 }
 
+// Create sun
+const sunGeometry = new THREE.SphereGeometry(100, 64, 64);
+const sunMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffff00,
+    transparent: true,
+    opacity: 0.8
+});
+const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+sun.position.set(500, 200, -800); // Position far away
+scene.add(sun);
+
+// Add sun glow
+const sunGlowGeometry = new THREE.SphereGeometry(110, 64, 64);
+const sunGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffff00,
+    transparent: true,
+    opacity: 0.3
+});
+const sunGlow = new THREE.Mesh(sunGlowGeometry, sunGlowMaterial);
+sunGlow.position.copy(sun.position);
+scene.add(sunGlow);
+
 // Lighting
-const ambientLight = new THREE.AmbientLight(0x404040);
+const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
 scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-directionalLight.position.set(1, 1, 1);
+
+// Enhanced directional light from sun
+const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+directionalLight.position.copy(sun.position);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 1000;
 scene.add(directionalLight);
+
+// Add point light at sun position for additional glow
+const sunLight = new THREE.PointLight(0xffff00, 2.0, 2000);
+sunLight.position.copy(sun.position);
+scene.add(sunLight);
 
 // Player ship
 function createPlayerShip() {
@@ -269,13 +303,13 @@ document.body.appendChild(messageDiv);
 // Initialize game objects
 createStarfield();
 
-// Create planets with larger spread
+// Create planets with larger spread and size
 for (let i = 0; i < 8; i++) {
     createPlanet(
-        (Math.random() - 0.5) * 300,
-        (Math.random() - 0.5) * 300,
-        (Math.random() - 0.5) * 300,
-        3 + Math.random() * 5,
+        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
+        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
+        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
+        8 + Math.random() * 12, // Increased size from 3-8 to 8-20
         planetMessages[i % planetMessages.length]
     );
 }
@@ -407,6 +441,14 @@ function checkCollisions() {
 function animate() {
     if (!gameOver) {
         requestAnimationFrame(animate);
+        
+        // Make sun glow pulse
+        const time = Date.now() * 0.001;
+        sunGlow.scale.set(
+            1 + Math.sin(time) * 0.1,
+            1 + Math.sin(time) * 0.1,
+            1 + Math.sin(time) * 0.1
+        );
         
         // Calculate target rotation based on mouse position
         const targetPitch = mousePosition.y * maxPitch;
