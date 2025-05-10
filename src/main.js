@@ -1,11 +1,25 @@
 import * as THREE from 'three';
 
+// Add HTML elements for messages
+const messageBox = document.createElement('div');
+messageBox.style.position = 'absolute';
+messageBox.style.bottom = '20px';
+messageBox.style.left = '20px';
+messageBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+messageBox.style.color = 'white';
+messageBox.style.fontFamily = 'Arial';
+messageBox.style.padding = '20px';
+messageBox.style.borderRadius = '10px';
+messageBox.style.maxWidth = '300px';
+messageBox.style.display = 'none';
+messageBox.style.zIndex = '1000';
+document.body.appendChild(messageBox);
+
 // Game state
 let gameOver = false;
 const planets = [];
 const rings = [];
-const bullets = [];
-const stars = [];
+const particles = [];
 const planetMessages = [
     "Welcome to Planet Alpha!",
     "Danger Zone: Planet Beta",
@@ -16,6 +30,8 @@ const planetMessages = [
 let ringsCollected = 0;
 let startTime = null;
 let gameStarted = false;
+let currentMessage = null;
+let messageTimeout = null;
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -181,15 +197,68 @@ let velocity = new THREE.Vector3(0, 0, 0);
 // Mouse control variables
 let mousePosition = new THREE.Vector2();
 const maxPitch = Math.PI/2; // 90 degrees
-const maxYaw = Math.PI*1.25; // 180 degrees
+const maxYaw = Math.PI*1.5; // 180 degrees
 
-// Add mouse move handler
+// Add settings variables
+let cursorInvertX = -1;
+let cursorInvertY = 1;
+
+// Add settings UI
+const settingsIcon = document.createElement('div');
+settingsIcon.innerHTML = '⚙️';
+settingsIcon.style.position = 'absolute';
+settingsIcon.style.top = '20px';
+settingsIcon.style.right = '20px';
+settingsIcon.style.fontSize = '24px';
+settingsIcon.style.cursor = 'pointer';
+settingsIcon.style.zIndex = '1000';
+document.body.appendChild(settingsIcon);
+
+const settingsPanel = document.createElement('div');
+settingsPanel.style.position = 'absolute';
+settingsPanel.style.top = '60px';
+settingsPanel.style.right = '20px';
+settingsPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+settingsPanel.style.color = 'white';
+settingsPanel.style.padding = '20px';
+settingsPanel.style.borderRadius = '10px';
+settingsPanel.style.display = 'none';
+settingsPanel.style.zIndex = '1000';
+settingsPanel.innerHTML = `
+    <h3 style="margin: 0 0 15px 0">Settings</h3>
+    <div style="margin-bottom: 10px">
+        <label style="display: block; margin-bottom: 5px">Cursor Orientation</label>
+        <div style="display: flex; gap: 10px">
+            <button id="invertX" style="padding: 5px 10px">Invert X</button>
+            <button id="invertY" style="padding: 5px 10px">Invert Y</button>
+        </div>
+    </div>
+`;
+document.body.appendChild(settingsPanel);
+
+// Settings event listeners
+settingsIcon.addEventListener('click', () => {
+    settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('invertX').addEventListener('click', () => {
+    cursorInvertX *= -1;
+    document.getElementById('invertX').style.backgroundColor = cursorInvertX === -1 ? '#4CAF50' : '';
+});
+
+document.getElementById('invertY').addEventListener('click', () => {
+    cursorInvertY *= -1;
+    document.getElementById('invertY').style.backgroundColor = cursorInvertY === -1 ? '#4CAF50' : '';
+});
+
+// Update mouse move handler
 document.addEventListener('mousemove', (event) => {
     if (gameOver) return;
     
     // Calculate mouse position relative to center of screen (-1 to 1)
-    mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mousePosition.y = -((event.clientY / window.innerHeight) * 2 - 1);
+    // Apply inversion based on settings
+    mousePosition.x = ((event.clientX / window.innerWidth) * 2 - 1) * cursorInvertX;
+    mousePosition.y = -((event.clientY / window.innerHeight) * 2 - 1) * cursorInvertY;
 });
 
 // Create planets
@@ -207,12 +276,14 @@ function createPlanet(x, y, z, radius, message) {
 }
 
 // Create ring function
-function createRing(x, y, z) {
+function createRing(x, y, z, color) {
     const ringGeometry = new THREE.TorusGeometry(8, 0.4, 16, 100);
     const ringMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x00ffff,
+        color: color,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.8,
+        emissive: color,
+        emissiveIntensity: 0.5
     });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
     ring.position.set(x, y, z);
@@ -223,14 +294,24 @@ function createRing(x, y, z) {
     ring.rotation.y = angle + Math.PI/2; // Rotate to face center
     ring.rotation.x = Math.PI/2; // Make rings vertical
     
+    // Add glow effect as a child of the ring
+    const glowGeometry = new THREE.TorusGeometry(8.2, 0.6, 16, 100);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    // No need to set rotation as it will inherit from parent
+    ring.add(glow); // Add glow as child of ring
+    
     scene.add(ring);
     rings.push(ring);
 }
 
 // Create explosion effect
 function createExplosion(position) {
-    const particles = [];
-    const particleCount = 50; // Increased particle count
+    const particleCount = 200; // Increased particle count
     const particleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     
     // Create multiple materials for variety
@@ -238,67 +319,81 @@ function createExplosion(position) {
         new THREE.MeshBasicMaterial({ color: 0x00ffff }), // Cyan
         new THREE.MeshBasicMaterial({ color: 0xff00ff }), // Magenta  
         new THREE.MeshBasicMaterial({ color: 0xffff00 }), // Yellow
+        new THREE.MeshBasicMaterial({ color: 0xff0000 }), // Red
+        new THREE.MeshBasicMaterial({ color: 0x00ff00 }), // Green
+        new THREE.MeshBasicMaterial({ color: 0x0000ff }), // Blue
+        new THREE.MeshBasicMaterial({ color: 0xff8800 }), // Orange
+        new THREE.MeshBasicMaterial({ color: 0x8800ff }), // Purple
     ];
     
-    for (let i = 0; i < particleCount; i++) {
-        // Randomly select material
-        const material = particleMaterials[Math.floor(Math.random() * particleMaterials.length)];
-        const particle = new THREE.Mesh(particleGeometry, material);
+    // Create multiple bursts with different timings
+    for (let burst = 0; burst < 8; burst++) {
+        const burstPosition = position.clone();
+        burstPosition.x += (Math.random() - 0.5) * 5;
+        burstPosition.y += (Math.random() - 0.5) * 5;
+        burstPosition.z += (Math.random() - 0.5) * 5;
         
-        particle.position.copy(position);
-        
-        // Increased velocity range
-        particle.userData.velocity = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.4,
-            (Math.random() - 0.5) * 0.4, 
-            (Math.random() - 0.5) * 0.4
-        );
-        
-        // Random rotation
-        particle.userData.rotationSpeed = new THREE.Vector3(
-            Math.random() * 0.2,
-            Math.random() * 0.2,
-            Math.random() * 0.2
-        );
-        
-        // Random size variation
-        const scale = 0.8 + Math.random() * 0.4;
-        particle.scale.set(scale, scale, scale);
-        
-        particle.userData.life = 1.0;
-        particle.userData.fadeRate = 0.8 + Math.random() * 0.4; // Random fade rate
-        
-        scene.add(particle);
-        particles.push(particle);
+        for (let i = 0; i < particleCount; i++) {
+            // Randomly select material
+            const material = particleMaterials[Math.floor(Math.random() * particleMaterials.length)];
+            const particle = new THREE.Mesh(particleGeometry, material);
+            
+            particle.position.copy(burstPosition);
+            
+            // Create spiral-like movement pattern
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * 0.8;
+            const speed = 0.4 + Math.random() * 0.6;
+            
+            particle.userData.velocity = new THREE.Vector3(
+                Math.cos(angle) * speed * radius,
+                Math.sin(angle) * speed * radius,
+                (Math.random() - 0.5) * speed
+            );
+            
+            // Enhanced rotation
+            particle.userData.rotationSpeed = new THREE.Vector3(
+                Math.random() * 0.4,
+                Math.random() * 0.4,
+                Math.random() * 0.4
+            );
+            
+            // Random size variation
+            const scale = 0.3 + Math.random() * 0.7;
+            particle.scale.set(scale, scale, scale);
+            
+            // Random life and fade rate
+            particle.userData.life = 1.0;
+            particle.userData.fadeRate = 0.4 + Math.random() * 0.3;
+            
+            // Add glow effect
+            material.transparent = true;
+            material.opacity = 0.8;
+            
+            scene.add(particle);
+            particles.push(particle);
+        }
     }
-    
-    return particles;
 }
 
-// Add HTML elements for game over and messages
-const gameOverDiv = document.createElement('div');
-gameOverDiv.id = 'gameOver';
-gameOverDiv.style.position = 'absolute';
-gameOverDiv.style.top = '50%';
-gameOverDiv.style.left = '50%';
-gameOverDiv.style.transform = 'translate(-50%, -50%)';
-gameOverDiv.style.color = 'white';
-gameOverDiv.style.fontFamily = 'Arial';
-gameOverDiv.style.fontSize = '32px';
-gameOverDiv.style.display = 'none';
-document.body.appendChild(gameOverDiv);
-
-const messageDiv = document.createElement('div');
-messageDiv.id = 'message';
-messageDiv.style.position = 'absolute';
-messageDiv.style.top = '50%';
-messageDiv.style.left = '50%';
-messageDiv.style.transform = 'translate(-50%, -50%)';
-messageDiv.style.color = 'white';
-messageDiv.style.fontFamily = 'Arial';
-messageDiv.style.fontSize = '24px';
-messageDiv.style.display = 'none';
-document.body.appendChild(messageDiv);
+// Show message function
+function showMessage(text, duration = 5000) {
+    if (messageTimeout) {
+        clearTimeout(messageTimeout);
+    }
+    messageBox.textContent = text;
+    messageBox.style.display = 'block';
+    currentMessage = text;
+    
+    if (duration > 0) {
+        messageTimeout = setTimeout(() => {
+            if (currentMessage === text) {
+                messageBox.style.display = 'none';
+                currentMessage = null;
+            }
+        }, duration);
+    }
+}
 
 // Initialize game objects
 createStarfield();
@@ -306,22 +401,37 @@ createStarfield();
 // Create planets with larger spread and size
 for (let i = 0; i < 8; i++) {
     createPlanet(
-        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
-        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
-        (Math.random() - 0.5) * 500, // Increased spread from 300 to 500
-        8 + Math.random() * 12, // Increased size from 3-8 to 8-20
+        (Math.random() - 0.5) * 500,
+        (Math.random() - 0.5) * 500,
+        (Math.random() - 0.5) * 500,
+        8 + Math.random() * 12,
         planetMessages[i % planetMessages.length]
     );
 }
 
-// Create rings in a path
+// Create rings in a path with different colors
+const ringColors = [
+    0xff0000, // Red
+    0x00ff00, // Green
+    0x0000ff, // Blue
+    0xffff00, // Yellow
+    0xff00ff, // Magenta
+    0x00ffff, // Cyan
+    0xff8800, // Orange
+    0x8800ff, // Purple
+    0xff0088, // Pink
+    0x88ff00  // Lime
+];
+
+// Create rings in a wider path
 for (let i = 0; i < 10; i++) {
     const angle = (i / 10) * Math.PI * 2;
-    const radius = 50;
+    const radius = 100; // Increased from 50 to 100
     createRing(
         Math.cos(angle) * radius,
         Math.sin(angle) * radius * 0.5,
-        Math.sin(angle) * radius
+        Math.sin(angle) * radius,
+        ringColors[i]
     );
 }
 
@@ -338,7 +448,6 @@ document.body.appendChild(uiDiv);
 // Update UI
 function updateUI() {
     if (!gameStarted) {
-        uiDiv.textContent = 'Press W to start';
         return;
     }
     
@@ -349,14 +458,28 @@ function updateUI() {
 
 // Update event listeners
 document.addEventListener('keydown', (event) => {
-    if (gameOver && event.key === 'r') {
-        location.reload();
-        return;
-    }
-    
-    if (!gameStarted && event.key.toLowerCase() === 'w') {
-        gameStarted = true;
-        startTime = Date.now();
+    if (event.key === ' ') {
+        if (gameOver) {
+            document.body.style.cursor = 'default'; // Show cursor on game over
+            location.reload();
+            return;
+        }
+        
+        if (!gameStarted) {
+            gameStarted = true;
+            startTime = Date.now();
+            document.body.style.cursor = 'none'; // Hide cursor when game starts
+            showMessage("Game Started! Collect all rings as fast as you can!", 3000);
+        }
+        
+        // Hide current message when space is pressed
+        if (currentMessage) {
+            messageBox.style.display = 'none';
+            currentMessage = null;
+            if (messageTimeout) {
+                clearTimeout(messageTimeout);
+            }
+        }
     }
     
     switch (event.key.toLowerCase()) {
@@ -387,16 +510,13 @@ function checkCollisions() {
         const distance = playerShip.position.distanceTo(planet.position);
         if (distance < planet.geometry.parameters.radius + 1) {
             gameOver = true;
-            document.getElementById('gameOver').style.display = 'block';
-            document.getElementById('gameOver').textContent = 'GAME OVER - Press R to restart';
+            document.body.style.cursor = 'default'; // Show cursor on game over
+            showMessage("Game Over! You crashed into a planet. Press SPACE to restart.", 0);
             return;
         }
         
         if (distance < 10) {
-            document.getElementById('message').style.display = 'block';
-            document.getElementById('message').textContent = planet.userData.message;
-        } else {
-            document.getElementById('message').style.display = 'none';
+            showMessage(planet.userData.message);
         }
     }
     
@@ -421,16 +541,15 @@ function checkCollisions() {
                 ring.visible = false;
                 
                 // Create explosion effect
-                const explosionParticles = createExplosion(ring.position);
-                setTimeout(() => {
-                    explosionParticles.forEach(particle => scene.remove(particle));
-                }, 1000);
+                createExplosion(ring.position);
                 
                 if (ringsCollected === 10) {
                     gameOver = true;
+                    document.body.style.cursor = 'default'; // Show cursor on win
                     const finalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-                    document.getElementById('gameOver').style.display = 'block';
-                    document.getElementById('gameOver').textContent = `You Win! Time: ${finalTime}s - Press R to restart`;
+                    showMessage(`You Win! Time: ${finalTime}s - Press SPACE to restart`, 0);
+                } else {
+                    showMessage(`Ring collected! ${10 - ringsCollected} rings remaining.`, 2000);
                 }
             }
         }
@@ -449,6 +568,30 @@ function animate() {
             1 + Math.sin(time) * 0.1,
             1 + Math.sin(time) * 0.1
         );
+        
+        // Update particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const particle = particles[i];
+            particle.position.add(particle.userData.velocity);
+            
+            // Add gravity effect
+            particle.userData.velocity.y -= 0.001;
+            
+            // Update rotation
+            particle.rotation.x += particle.userData.rotationSpeed.x;
+            particle.rotation.y += particle.userData.rotationSpeed.y;
+            particle.rotation.z += particle.userData.rotationSpeed.z;
+            
+            // Update life and opacity
+            particle.userData.life -= particle.userData.fadeRate * 0.016;
+            particle.material.opacity = particle.userData.life * 0.8;
+            
+            // Remove dead particles
+            if (particle.userData.life <= 0) {
+                scene.remove(particle);
+                particles.splice(i, 1);
+            }
+        }
         
         // Calculate target rotation based on mouse position
         const targetPitch = mousePosition.y * maxPitch;
@@ -516,6 +659,9 @@ function animate() {
 
 // Start the game
 animate();
+
+// Show initial game rules
+showMessage("Welcome to Space Race!\n\nRules:\n- Collect all 10 rings\n- Avoid planets\n- Press W to move forward\n- Use mouse to steer\n- Press SPACE to start", 0);
 
 // Handle window resize
 window.addEventListener('resize', () => {
