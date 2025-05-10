@@ -694,23 +694,4 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Add stream info overlay
-const streamInfo = document.createElement('div');
-streamInfo.style.position = 'absolute';
-streamInfo.style.top = '20px';
-streamInfo.style.right = '20px';
-streamInfo.style.color = 'white';
-streamInfo.style.fontFamily = 'Arial';
-streamInfo.style.fontSize = '14px';
-streamInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-streamInfo.style.padding = '10px';
-streamInfo.style.borderRadius = '5px';
-streamInfo.style.zIndex = '1000';
-streamInfo.innerHTML = `
-    <div style="margin-bottom: 5px">Stream: spaceforce.moisestrejo.com</div>
-    <div style="margin-bottom: 5px">ID: 11204305384</div>
-    <div>Measurement: G-PWCMCGCY5K</div>
-`;
-document.body.appendChild(streamInfo); 
+}); 
