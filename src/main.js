@@ -203,6 +203,13 @@ const maxYaw = Math.PI*1.5; // 180 degrees
 let cursorInvertX = -1;
 let cursorInvertY = 1;
 
+// Add corner acceleration variables
+const cornerAcceleration = 0.005;
+const cornerThreshold = 0.8; // How close to corner before acceleration starts
+
+// Add corner rotation variables
+const cornerRotationSpeed = 0.02;
+
 // Add settings UI
 const settingsIcon = document.createElement('div');
 settingsIcon.innerHTML = '⚙️';
@@ -256,7 +263,6 @@ document.addEventListener('mousemove', (event) => {
     if (gameOver) return;
     
     // Calculate mouse position relative to center of screen (-1 to 1)
-    // Apply inversion based on settings
     mousePosition.x = ((event.clientX / window.innerWidth) * 2 - 1) * cursorInvertX;
     mousePosition.y = -((event.clientY / window.innerHeight) * 2 - 1) * cursorInvertY;
 });
@@ -443,17 +449,21 @@ uiDiv.style.left = '10px';
 uiDiv.style.color = 'white';
 uiDiv.style.fontFamily = 'Arial';
 uiDiv.style.fontSize = '20px';
+uiDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+uiDiv.style.padding = '10px';
+uiDiv.style.borderRadius = '5px';
 document.body.appendChild(uiDiv);
 
 // Update UI
 function updateUI() {
     if (!gameStarted) {
+        uiDiv.textContent = 'Press SPACE to start';
         return;
     }
     
     const currentTime = Date.now();
     const elapsedTime = (currentTime - startTime) / 1000;
-    uiDiv.textContent = `Rings: ${ringsCollected}/10 | Time: ${elapsedTime.toFixed(1)}s`;
+    uiDiv.textContent = `Time: ${elapsedTime.toFixed(1)}s | Rings: ${ringsCollected}/10`;
 }
 
 // Update event listeners
@@ -593,9 +603,19 @@ function animate() {
             }
         }
         
-        // Calculate target rotation based on mouse position
-        const targetPitch = mousePosition.y * maxPitch;
-        const targetYaw = mousePosition.x * maxYaw;
+        // Calculate base rotation from mouse position
+        let targetPitch = mousePosition.y * maxPitch;
+        let targetYaw = mousePosition.x * maxYaw;
+        
+        // Add continuous rotation when in corners
+        if (Math.abs(mousePosition.x) > cornerThreshold) {
+            const cornerFactor = (Math.abs(mousePosition.x) - cornerThreshold) / (1 - cornerThreshold);
+            targetYaw += Math.sign(mousePosition.x) * cornerRotationSpeed * cornerFactor;
+        }
+        if (Math.abs(mousePosition.y) > cornerThreshold) {
+            const cornerFactor = (Math.abs(mousePosition.y) - cornerThreshold) / (1 - cornerThreshold);
+            targetPitch += Math.sign(mousePosition.y) * cornerRotationSpeed * cornerFactor;
+        }
         
         // Create quaternions for pitch and yaw
         const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), targetPitch);
